@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<!-- 声明文档类型为 HTML5，浏览器会按标准模式渲染 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 编码声明，防止中文乱码 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- 让页面在手机上也能正常缩放显示 -->
+  <title>水利工程安全监测平台</title>
+
+  <style>
+    /* ================= 1. 全局样式与颜色变量 ================= */
+    :root {
+      /* 用 CSS 变量统一管理颜色，改一处全页面生效 */
+      --blue-deep: #0b3d66;
+      --blue: #1273c4;
+      --blue-light: #e8f2fb;
+      --ok: #1a9c5b;
+      --warn: #d98f00;
+      --danger: #d9453c;
+      --text: #22303c;
+      --muted: #6b7f8f;
+    }
+
+    /* 通配符 * 选中所有元素：清除默认边距，并让宽高包含内边距和边框 */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; } /* 点击锚点链接时平滑滚动 */
+
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      background: #eef4f9;
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ================= 2. 顶部标题栏 ================= */
+    header {
+      display: flex;                   /* 弹性布局：左右两端对齐 */
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 18px 28px;
+      background: linear-gradient(120deg, #0b3d66, #1273c4 55%, #1e9de0);
+      color: #fff;
+    }
+    header h1 { font-size: 22px; letter-spacing: 1px; }
+    header .sub { font-size: 12px; color: #cfe6f7; }
+    /* 右侧时钟,内容由 JavaScript 动态更新 */
+    #clock {
+      font-size: 14px;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+
+    /* ================= 3. 导航栏 ================= */
+    nav {
+      display: flex;
+      gap: 6px;
+      padding: 0 28px;
+      background: #fff;
+      border-bottom: 1px solid #d9e6f2;
+    }
+    nav a {
+      padding: 12px 18px;
+      font-size: 14px;
+      color: var(--muted);
+      text-decoration: none;           /* 去掉下划线 */
+      border-bottom: 3px solid transparent;
+    }
+    nav a:hover { color: var(--blue); }
+    nav a.active {                     /* 当前选中项 */
+      color: var(--blue);
+      font-weight: 700;
+      border-bottom-color: var(--blue);
+    }
+
+    /* ================= 4. 主体区域 ================= */
+    main {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 0 20px;
+      display: grid;                   /* 纵向排列各区块,间距 20px */
+      gap: 20px;
+    }
+
+    /* ---- 4.1 顶部 4 个统计卡片 ---- */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);  /* 四等分列 */
+      gap: 16px;
+    }
+    .card {
+      background: #fff;
+      padding: 16px 18px;
+      border-radius: 10px;
+      border-left: 4px solid var(--blue);     /* 左侧色条表示状态 */
+      box-shadow: 0 2px 8px rgba(11, 61, 102, 0.08);
+    }
+    .card.warn   { border-left-color: var(--warn); }
+    .card.danger { border-left-color: var(--danger); }
+    .card .label { font-size: 13px; color: var(--muted); }
+    .card .value { font-size: 26px; font-weight: 700; margin: 2px 0; }
+    .card .value small { font-size: 13px; font-weight: 400; color: var(--muted); }
+    .card .trend { font-size: 12px; color: var(--muted); }
+    .card .trend.up   { color: var(--danger); }  /* 上升 */
+    .card .trend.down { color: var(--ok); }      /* 下降 */
+
+    /* ---- 4.2 中部两个面板（图表 + 预警） ---- */
+    .panels {
+      display: grid;
+      grid-template-columns: 3fr 2fr;  /* 左边图表宽一些 */
+      gap: 20px;
+    }
+    .panel {
+      background: #fff;
+      padding: 16px 18px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(11, 61, 102, 0.08);
+    }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .panel-head h2 { font-size: 16px; }
+    .panel-head .tip { font-size: 12px; color: var(--muted); }
+
+    /* 刷新按钮 */
+    .btn {
+      border: 1px solid #cfe0f2;
+      background: #fff;
+      color: var(--blue);
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 16px;
+      cursor: pointer;
+    }
+    .btn:hover { background: var(--blue-light); }
+
+    /* 图表用内联 SVG 绘制 */
+    .chart svg { width: 100%; height: auto; display: block; }
+    .legend {
+      display: flex;
+      gap: 18px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .legend i {                       /* 图例中的小色块 */
+      display: inline-block;
+      width: 16px;
+      height: 3px;
+      background: var(--blue);
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    .legend i.dashed {
+      background: repeating-linear-gradient(90deg, var(--danger) 0 5px, transparent 5px 9px);
+    }
+
+    /* ---- 4.3 预警信息列表 ---- */
+    .alerts { list-style: none; }     /* 去掉 li 前面的圆点 */
+    .alerts li {
+      display: flex;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      background: #f7fafd;
+      border: 1px solid #e3edf7;
+      font-size: 13px;
+    }
+    .alerts .dot {                    /* 状态圆点 */
+      flex: none;
+      width: 10px;
+      height: 10px;
+      margin-top: 6px;
+      border-radius: 50%;
+    }
+    .dot.red    { background: var(--danger); }
+    .dot.yellow { background: var(--warn); }
+    .dot.green  { background: var(--ok); }
+    .alerts time { display: block; font-size: 12px; color: var(--muted); }
+
+    /* ---- 4.4 数据表格 ---- */
+    table {
+      width: 100%;
+      border-collapse: collapse;        /* 合并单元格边框 */
+      font-size: 14px;
+    }
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      background: var(--blue-light);
+      color: var(--blue-deep);
+      font-size: 13px;
+    }
+    tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #eaf1f8;
+    }
+    tbody tr:hover { background: #f5faff; }        /* 鼠标悬停高亮 */
+    tbody tr.selected { background: #dceafc; }     /* 点击选中的行(JS 控制) */
+
+    /* 状态标签 */
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+    .badge.ok     { background: #e3f6eb; color: var(--ok); }
+    .badge.warn   { background: #fdf3dd; color: var(--warn); }
+    .badge.danger { background: #fde8e6; color: var(--danger); }
+
+    /* ================= 5. 页脚 ================= */
+    footer {
+      text-align: center;
+      padding: 18px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ================= 6. 响应式：小屏幕适配 ================= */
+    @media (max-width: 900px) {
+      .cards  { grid-template-columns: repeat(2, 1fr); }
+      .panels { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ================= 顶部标题栏 ================= -->
+  <header>
+    <div>
+      <h1>水利工程安全监测平台</h1>
+      <div class="sub">监测对象：xx 水库 · 大坝及溢洪道 · 数据每 5 分钟自动采集</div>
+    </div>
+    <!-- 时钟内容由 JS 每秒钟刷新 -->
+    <div id="clock">加载中…</div>
+  </header>
+
+  <!-- ================= 导航栏 ================= -->
+  <nav>
+    <a href="#overview" class="active">概览</a>
+    <a href="#data">实时监测</a>
+    <a href="#alerts">预警信息</a>
+    <a href="#">报表中心</a> <!-- 示例占位链接 -->
+  </nav>
+
+  <!-- ================= 主体内容 ================= -->
+  <main>
+
+    <!-- 4 个统计卡片 -->
+    <section class="cards" id="overview">
+      <div class="card">
+        <div class="label">实时库水位</div>
+        <div class="value">132.45 <small>m</small></div>
+        <div class="trend up">▲ 较昨日 +0.05 m</div>
+      </div>
+      <div class="card danger">
+        <div class="label">坝体渗流量</div>
+        <div class="value">3.60 <small>L/s</small></div>
+        <div class="trend up">▲ 已超过预警阈值 3.00 L/s</div>
+      </div>
+      <div class="card warn">
+        <div class="label">最大水平位移</div>
+        <div class="value">12.40 <small>mm</small></div>
+        <div class="trend up">▲ 本周累计 +0.60 mm</div>
+      </div>
+      <div class="card">
+        <div class="label">在线传感器</div>
+        <div class="value">12 <small>/ 12 台</small></div>
+        <div class="trend down">通信正常率 100%</div>
+      </div>
+    </section>
+
+    <!-- 图表 + 预警 两个面板 -->
+    <section class="panels">
+
+      <!-- 左：库水位趋势图（用内联 SVG 手绘折线） -->
+      <div class="panel chart">
+        <div class="panel-head">
+          <h2>近 7 天库水位变化趋势</h2>
+          <span class="tip">单位：m</span>
+        </div>
+
+        <!-- viewBox 定义了内部的坐标系(宽 620 高 230)，可整体缩放 -->
+        <svg viewBox="0 0 620 230" xmlns="http://www.w3.org/2000/svg">
+          <!-- 横向网格线 -->
+          <line x1="60" y1="30"  x2="560" y2="30"  stroke="#e6eef6" />
+          <line x1="60" y1="70"  x2="560" y2="70"  stroke="#e6eef6" />
+          <line x1="60" y1="110" x2="560" y2="110" stroke="#e6eef6" />
+          <line x1="60" y1="150" x2="560" y2="150" stroke="#e6eef6" />
+          <line x1="60" y1="190" x2="560" y2="190" stroke="#cfe0f2" />
+
+          <!-- 纵轴刻度文字：text-anchor="end" 表示文字靠右对齐到 x=52 -->
+          <text x="52" y="34"  font-size="11" fill="#6b7f8f" text-anchor="end">133.5</text>
+          <text x="52" y="74"  font-size="11" fill="#6b7f8f" text-anchor="end">132.5</text>
+          <text x="52" y="114" font-size="11" fill="#6b7f8f" text-anchor="end">131.5</text>
+          <text x="52" y="154" font-size="11" fill="#6b7f8f" text-anchor="end">130.5</text>
+          <text x="52" y="194" font-size="11" fill="#6b7f8f" text-anchor="end">129.5</text>
+
+          <!-- 警戒水位虚线 -->
+          <line x1="60" y1="50" x2="560" y2="50"
+                stroke="#d9453c" stroke-width="1.5" stroke-dasharray="6 4" />
+          <text x="560" y="44" font-size="11" fill="#d9453c" text-anchor="end">警戒水位 133.00 m</text>
+
+          <!-- 折线下方的浅色填充区域（多边形：折线各点 + 底边两角） -->
+          <polygon points="60,162 143,138 227,110 310,86 393,74 477,90 560,72 560,190 60,190"
+                   fill="#1273c4" fill-opacity="0.10" />
+
+          <!-- 水位折线：points 中每对数字是“横坐标,纵坐标” -->
+          <polyline points="60,162 143,138 227,110 310,86 393,74 477,90 560,72"
+                    fill="none" stroke="#1273c4" stroke-width="2.5"
+                    stroke-linejoin="round" stroke-linecap="round" />
+
+          <!-- 每个数据点画一个小圆圈 -->
+          <circle cx="60"  cy="162" r="3.5" fill="#fff" stroke="#1273c4" stroke-width="2" />
+          <circle cx="143" cy="138" r="3.5" fill="#fff" stroke="#1273c4" stroke-width="2" />
+          <circle cx="227" cy="110" r="3.5" fill="#fff" stroke="#1273c4" stroke-width="2" />
+          <circle cx="310" cy="86"  r="3.5" fill="#fff" stroke="#1273c4" stroke-width="2" />
+          <circle cx="393" cy="74"  r="3.5" fill="#fff" stroke="#1273c4" stroke-width="2" />
+          <circle cx="477" cy="90"  r="3.5" fill="#fff" stroke="#1273c4" stroke-width="2" />
+          <circle cx="560" cy="72"  r="3.5" fill="#fff" stroke="#1273c4" stroke-width="2" />
+
+          <!-- 横轴日期 -->
+          <text x="60"  y="212" font-size="11" fill="#6b7f8f" text-anchor="middle">09-23</text>
+          <text x="143" y="212" font-size="11" fill="#6b7f8f" text-anchor="middle">09-24</text>
+          <text x="227" y="212" font-size="11" fill="#6b7f8f" text-anchor="middle">09-25</text>
+          <text x="310" y="212" font-size="11" fill="#6b7f8f" text-anchor="middle">09-26</text>
+          <text x="393" y="212" font-size="11" fill="#6b7f8f" text-anchor="middle">09-27</text>
+          <text x="477" y="212" font-size="11" fill="#6b7f8f" text-anchor="middle">09-28</text>
+          <text x="560" y="212" font-size="11" fill="#6b7f8f" text-anchor="middle">09-29</text>
+        </svg>
+
+        <div class="legend">
+          <span><i></i>实测库水位</span>
+          <span><i class="dashed"></i>警戒水位</span>
+        </div>
+      </div>
+
+      <!-- 右：实时预警信息 -->
+      <div class="panel" id="alerts">
+        <div class="panel-head">
+          <h2>实时预警信息</h2>
+          <button class="btn" id="refreshBtn">刷新数据</button>
+        </div>
+        <ul class="alerts">
+          <li>
+            <span class="dot red"></span>
+            <div>
+              <strong>渗流量超阈值</strong>：坝下游坡脚渗流量 3.60 L/s，超过阈值 3.00 L/s，建议现场核查。
+              <time>09-29 08:12</time>
+            </div>
+          </li>
+          <li>
+            <span class="dot yellow"></span>
+            <div>
+              <strong>指标接近阈值</strong>：坝体浸润线渗流压力 46.2 kPa，接近关注阈值 50 kPa。
+              <time>09-28 21:40</time>
+            </div>
+          </li>
+          <li>
+            <span class="dot green"></span>
+            <div>
+              <strong>系统巡检完成</strong>：12 个传感器通信正常，无离线设备。
+              <time>09-28 16:05</time>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 监测点数据表格 -->
+    <section class="panel" id="data">
+      <div class="panel-head">
+        <h2>监测点实时数据</h2>
+        <span class="tip">最后更新：<span id="updateTime">2026-09-29 09:30:15</span></span>
+      </div>
+
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>测点编号</th>
+            <th>监测位置</th>
+            <th>监测项目</th>
+            <th>最新值</th>
+            <th>单位</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>JC-01</td><td>主坝坝顶</td><td>水平位移</td>
+            <td>12.40</td><td>mm</td>
+            <td><span class="badge ok">正常</span></td>
+          </tr>
+          <tr>
+            <td>JC-02</td><td>主坝坝顶</td><td>垂直位移</td>
+            <td>8.10</td><td>mm</td>
+            <td><span class="badge ok">正常</span></td>
+          </tr>
+          <tr>
+            <td>JC-03</td><td>坝体浸润线</td><td>渗流压力</td>
+            <td>46.20</td><td>kPa</td>
+            <td><span class="badge warn">关注</span></td>
+          </tr>
+          <tr>
+            <td>JC-04</td><td>左岸溢洪道</td><td>库水位</td>
+            <td>132.45</td><td>m</td>
+            <td><span class="badge ok">正常</span></td>
+          </tr>
+          <tr>
+            <td>JC-05</td><td>坝下游坡脚</td><td>渗流量</td>
+            <td>3.60</td><td>L/s</td>
+            <td><span class="badge danger">预警</span></td>
+          </tr>
+          <tr>
+            <td>JC-06</td><td>主坝坝基</td><td>孔隙水压力</td>
+            <td>78.50</td><td>kPa</td>
+            <td><span class="badge ok">正常</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- ================= 页脚 ================= -->
+  <footer>
+    本页面仅为 HTML 学习示例，所有数据均为模拟数据，不可用于实际生产系统。
+  </footer>
+
+  <!-- ================= JavaScript（放在 body 末尾，保证元素已加载） ================= -->
+  <script>
+    // ---------- 1. 数字补零工具函数：9 -> "09" ----------
+    function pad(n) {
+      return n < 10 ? '0' + n : '' + n;
+    }
+
+    // ---------- 2. 生成“年-月-日 时:分:秒”格式的当前时间 ----------
+    function nowText() {
+      var d = new Date();
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+           + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
+
+    // ---------- 3. 顶部时钟：先立即执行一次，再每秒刷新 ----------
+    var clock = document.getElementById('clock');
+    function tick() { clock.textContent = nowText(); }
+    tick();
+    setInterval(tick, 1000);
+
+    // ---------- 4. 点击“刷新数据”按钮，更新表格右上角的最后更新时间 ----------
+    document.getElementById('refreshBtn').addEventListener('click', function () {
+      document.getElementById('updateTime').textContent = nowText();
+    });
+
+    // ---------- 5. 点击表格任意一行，高亮显示该行 ----------
+    var rows = document.querySelectorAll('#dataTable tbody tr');
+    rows.forEach(function (row) {
+      row.addEventListener('click', function () {
+        // 先清除所有行的高亮，再给当前行加上
+        rows.forEach(function (r) { r.classList.remove('selected'); });
+        row.classList.add('selected');
+      });
+    });
+  </script>
+</body>
+</html>
